@@ -1,0 +1,16 @@
+import os
+from channels.routing import ProtocolTypeRouter, URLRouter
+from channels.auth import AuthMiddlewareStack
+from django.core.asgi import get_asgi_application
+import qa.routing
+
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "realtime_questions.settings")
+
+django_asgi_app = get_asgi_application()
+
+application = ProtocolTypeRouter({
+    "http": django_asgi_app,
+    "websocket": AuthMiddlewareStack(
+        URLRouter(qa.routing.websocket_urlpatterns)
+    ),
+})

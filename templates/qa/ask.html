@@ -1,0 +1,70 @@
+{% extends "qa/base_public.html" %}
+{% block title %}Ask a Question{% endblock %}
+
+{% block body %}
+<div class="min-h-screen flex items-center justify-center px-5 py-10">
+  <div class="w-full max-w-lg bg-slate-900/50 border border-slate-800 rounded-2xl p-6 shadow-xl">
+    <div class="text-2xl font-semibold">Ask a question</div>
+    <!-- <div class="text-slate-300 mt-2">Your question goes to moderation and appears on the screen when approved.</div> -->
+
+    {% if not submissions_enabled %}
+      <div class="mt-5 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200">
+        Submissions are currently disabled by the event organizer.
+      </div>
+    {% endif %}
+
+    <form class="mt-6 space-y-4" method="post" novalidate>
+      {% csrf_token %}
+
+      <div>
+        <label class="block text-sm text-slate-300 mb-1">Full Name</label>
+        {{ form.name }}
+        {% if form.name.errors %}
+          <div class="text-red-300 text-sm mt-1">{{ form.name.errors|striptags }}</div>
+        {% endif %}
+      </div>
+
+      <div>
+        <div class="flex items-center justify-between">
+          <label class="block text-sm text-slate-300 mb-1">Question</label>
+          <div class="text-xs text-slate-400">Max {{ max_len }} characters</div>
+        </div>
+        {{ form.question }}
+        {% if form.question.errors %}
+          <div class="text-red-300 text-sm mt-1">{{ form.question.errors|striptags }}</div>
+        {% endif %}
+        <div class="text-xs text-slate-400 mt-2">{{ form.question.help_text }}</div>
+      </div>
+
+      {% if form.non_field_errors %}
+        <div class="text-red-300 text-sm">{{ form.non_field_errors|striptags }}</div>
+      {% endif %}
+
+      <button
+        type="submit"
+        class="w-full py-3 rounded-xl font-semibold bg-white text-slate-950 disabled:opacity-50"
+        {% if not submissions_enabled %}disabled{% endif %}
+      >
+        Submit
+      </button>
+
+      <div class="text-xs text-slate-400 leading-relaxed">
+        <!-- Rate limiting is enabled to prevent spam. -->
+      </div>
+    </form>
+  </div>
+</div>
+
+<style>
+  .input, .textarea {
+    width: 100%;
+    border-radius: 0.9rem;
+    padding: 0.85rem 0.95rem;
+    background: rgba(2,6,23,.5);
+    border: 1px solid rgba(148,163,184,.25);
+    outline: none;
+  }
+  .textarea { min-height: 130px; resize: vertical; }
+  .input:focus, .textarea:focus { border-color: rgba(255,255,255,.6); }
+</style>
+{% endblock %}

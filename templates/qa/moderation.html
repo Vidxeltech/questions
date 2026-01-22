@@ -1,0 +1,189 @@
+{% extends "qa/base_public.html" %}
+{% block title %}Moderation{% endblock %}
+
+{% block body %}
+<div class="min-h-screen" style="background:#fff; color:#111;">
+  <div class="max-w-5xl mx-auto px-5 py-8">
+    <div class="flex items-center justify-between gap-4">
+      <div>
+        <div class="text-3xl font-bold" style="color:#0A699A;">Moderation</div>
+        <!-- <div class="text-sm text-slate-600 mt-1">Pending questions appear live. Select multiple for bulk actions.</div> -->
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button id="btnApprove" class="px-4 py-2 rounded-lg bg-emerald-600 text-white font-semibold">Approve</button>
+        <button id="btnReject" class="px-4 py-2 rounded-lg bg-amber-500 text-white font-semibold">Reject</button>
+        <button id="btnDelete" class="px-4 py-2 rounded-lg bg-red-600 text-white font-semibold">Delete</button>
+      </div>
+    </div>
+
+    <div class="mt-6 text-sm text-slate-600" id="status">Connecting…</div>
+
+    <div class="mt-5 bg-white border border-slate-200 rounded-xl overflow-hidden">
+      <div class="flex items-center justify-between px-4 py-3 border-b border-slate-200">
+        <label class="flex items-center gap-2 text-sm">
+          <input type="checkbox" id="selectAll" />
+          Select all
+        </label>
+        <div class="text-sm text-slate-600"><span id="count">0</span> pending</div>
+      </div>
+
+      <div id="list"></div>
+
+      <div id="empty" class="px-4 py-10 text-center text-slate-600 hidden">
+        No pending questions right now.
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const pendingUrl = "{% url 'pending_questions_json' %}";
+  const actionUrl  = "{% url 'moderation_action' %}";
+
+  function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop().split(';').shift();
+    return "";
+  }
+  const csrftoken = getCookie("csrftoken");
+
+  function esc(s){
+    return (s ?? "").replace(/[&<>"']/g, (c) => ({
+      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+    }[c]));
+  }
+
+  function selectedIds(){
+    return Array.from(document.querySelectorAll("input.qcheck:checked"))
+      .map(x => x.value)
+      .join(",");
+  }
+
+  async function doAction(action){
+    const ids = selectedIds();
+    if(!ids){ alert("Select at least one question."); return; }
+
+    const form = new FormData();
+    form.append("action", action);
+    form.append("ids", ids);
+
+    const res = await fetch(actionUrl, {
+      method: "POST",
+      headers: {"X-CSRFToken": csrftoken},
+      body: form,
+      credentials: "same-origin"
+    });
+
+
+    if(!res.ok){
+      const t = await res.text();
+      alert("Action failed: " + t);
+      return;
+    }
+    // No refresh needed; websocket event will trigger reload.
+  }
+
+  async function loadPending(){
+    const res = await fetch(pendingUrl, {headers: {"Accept":"application/json"}});
+    const data = await res.json();
+    const items = data.pending || [];
+
+    document.getElementById("count").textContent = items.length;
+
+    const list = document.getElementById("list");
+    const empty = document.getElementById("empty");
+
+    if(items.length === 0){
+      list.innerHTML = "";
+      empty.classList.remove("hidden");
+      return;
+    }
+    empty.classList.add("hidden");
+
+    list.innerHTML = items.map((q) => {
+      const who = q.name ? `<div class="text-sm text-slate-600 mt-1">— ${esc(q.name)}</div>` : "";
+      return `
+        <div class="px-4 py-4 border-b border-slate-200 flex gap-3 items-start">
+          <div class="pt-1">
+            <input class="qcheck" type="checkbox" value="${q.id}" />
+          </div>
+          <div class="flex-1">
+            <div class="text-lg font-semibold">${esc(q.question)}</div>
+            ${who}
+          </div>
+          <div class="flex gap-2">
+            <button class="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-sm font-semibold" data-one="approve" data-id="${q.id}">Approve</button>
+            <button class="px-3 py-1.5 rounded-lg bg-amber-500 text-white text-sm font-semibold" data-one="reject" data-id="${q.id}">Reject</button>
+            <button class="px-3 py-1.5 rounded-lg bg-red-600 text-white text-sm font-semibold" data-one="delete" data-id="${q.id}">Delete</button>
+          </div>
+        </div>
+      `;
+    }).join("");
+
+    // single-item handlers
+    list.querySelectorAll("button[data-one]").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const action = btn.getAttribute("data-one");
+        const id = btn.getAttribute("data-id");
+        const form = new FormData();
+        form.append("action", action);
+        form.append("ids", id);
+
+        const res = await fetch(actionUrl, {
+          method: "POST",
+          headers: {"X-CSRFToken": csrftoken},
+          body: form,
+          credentials: "same-origin"
+        });
+
+        if(!res.ok){
+          const t = await res.text();
+          alert("Action failed: " + t);
+        }
+      });
+    });
+  }
+
+  function connectWS(){
+    const status = document.getElementById("status");
+    const scheme = (location.protocol === "https:") ? "wss" : "ws";
+    const ws = new WebSocket(`${scheme}://${location.host}/ws/moderation/`);
+
+    ws.onopen = async () => {
+      status.textContent = "Live";
+      await loadPending();
+    };
+
+    ws.onmessage = async (evt) => {
+      try{
+        const msg = JSON.parse(evt.data);
+        if(msg.type === "refresh"){
+          await loadPending();
+        }
+      }catch(e){}
+    };
+
+    ws.onclose = () => {
+      status.textContent = "Disconnected — retrying…";
+      setTimeout(connectWS, 1000);
+    };
+
+    ws.onerror = () => {
+      status.textContent = "Connection error";
+      ws.close();
+    };
+  }
+
+  document.getElementById("btnApprove").onclick = () => doAction("approve");
+  document.getElementById("btnReject").onclick = () => doAction("reject");
+  document.getElementById("btnDelete").onclick = () => doAction("delete");
+
+  document.getElementById("selectAll").addEventListener("change", (e) => {
+    document.querySelectorAll("input.qcheck").forEach(cb => cb.checked = e.target.checked);
+  });
+
+  connectWS();
+</script>
+{% endblock %}

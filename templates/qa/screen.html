@@ -1,0 +1,127 @@
+{% extends "qa/base_public.html" %}
+{% block title %}{{ s.event_title }}{% endblock %}
+
+{% block body %}
+<div class="min-h-screen" style="background: {{ s.background_color }};">
+  <header class="px-10 pt-8 pb-6 flex items-center justify-between">
+    <div>
+      <div
+        class="font-semibold tracking-tight"
+        style="color: {{ s.title_color }}; font-size: {{ s.title_size }}px;"
+      >
+        {{ s.event_title }}
+      </div>
+      <div class="mt-2" style="color: #666; font-size: 18px;">
+        <!-- Scan to ask • Approved questions appear instantly -->
+      </div>
+    </div>
+
+    <div class="flex items-center gap-5">
+      <div class="text-right hidden md:block">
+        <div style="color:#666; font-size: 13px;">Open on phone</div>
+        <a style="color:#0A699A; text-decoration: underline;" href="{{ ask_url }}">{{ ask_url }}</a>
+      </div>
+
+      <div class="bg-white p-3 rounded-xl border" style="border-color:#ddd;">
+        <img
+          alt="QR code to ask"
+          src="{{ qr_data_uri }}"
+          style="width: {{ s.qr_size }}px; height: {{ s.qr_size }}px;"
+        />
+      </div>
+    </div>
+  </header>
+
+  <main class="px-10 pb-10">
+    <div id="status" style="color:#777; font-size: 13px;">Connecting…</div>
+    <div id="questions" class="mt-4"></div>
+  </main>
+</div>
+
+<script>
+  const approvedUrl = "{% url 'approved_questions_json' %}";
+  const settingsUrl = "{% url 'settings_json' %}";
+
+  function esc(s){
+    return (s ?? "").replace(/[&<>"']/g, (c) => ({
+      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+    }[c]));
+  }
+
+  async function loadSettings(){
+    // Optional: if you later want to live-apply style changes without reload,
+    // we already trigger refresh events, so fetching settings is ready.
+    await fetch(settingsUrl);
+  }
+
+  async function loadApproved(){
+    const res = await fetch(approvedUrl, {headers: {"Accept":"application/json"}});
+    const data = await res.json();
+    const box = document.getElementById("questions");
+    const items = data.approved || [];
+
+    if(items.length === 0){
+      box.innerHTML = `
+        <div style="margin-top:40px; color:#111; font-size:${esc("42")}px; font-weight:700;">
+          No approved questions yet
+        </div>
+        <div style="margin-top:10px; color:#666; font-size:22px;">
+          Scan the QR code to submit a question.
+        </div>
+      `;
+      return;
+    }
+
+    // Pull style values from rendered settings (server-side)
+    const QUESTION_COLOR = "{{ s.question_color }}";
+    const NAME_COLOR = "{{ s.name_color }}";
+    const QUESTION_SIZE = {{ s.question_size|default:42 }};
+    const NAME_SIZE = {{ s.name_size|default:26 }};
+
+    box.innerHTML = items.map((q) => {
+      const who = q.name ? `<div style="color:${NAME_COLOR}; font-size:${NAME_SIZE}px; margin-top:8px;">— ${esc(q.name)}</div>` : "";
+      return `
+        <div style="border-bottom:1px solid #eee; padding:18px 0;">
+          <div style="color:${QUESTION_COLOR}; font-size:${QUESTION_SIZE}px; line-height:1.15; font-weight:700;">
+            ${esc(q.question)}
+          </div>
+          ${who}
+        </div>
+      `;
+    }).join("");
+  }
+
+  function connectWS(){
+    const status = document.getElementById("status");
+    const scheme = (location.protocol === "https:") ? "wss" : "ws";
+    const ws = new WebSocket(`${scheme}://${location.host}/ws/screen/`);
+
+    ws.onopen = async () => {
+      status.textContent = "Live";
+      await loadApproved();
+    };
+
+    ws.onmessage = async (evt) => {
+      try{
+        const msg = JSON.parse(evt.data);
+        if(msg.type === "refresh"){
+          // simplest, safest: server tells us something changed → we refresh the lists
+          await loadApproved();
+        }
+      }catch(e){}
+    };
+
+    ws.onclose = () => {
+      status.textContent = "Disconnected — retrying…";
+      setTimeout(connectWS, 1000);
+    };
+
+    ws.onerror = () => {
+      status.textContent = "Connection error";
+      ws.close();
+    };
+  }
+
+  connectWS();
+</script>
+{% endblock %}
