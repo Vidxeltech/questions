@@ -1,1 +1,1 @@
-web: python -m daphne realtime_questions.asgi:application --bind 0.0.0.0 --port $PORT
+web: bash start.sh
