@@ -99,17 +99,16 @@ ASGI_APPLICATION = "realtime_questions.asgi.application"
 # --------------------------------------------------
 # DATABASE (Railway-safe, production-safe)
 # --------------------------------------------------
+import dj_database_url
+
 DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": env("DB_NAME", default=""),
-        "USER": env("DB_USER", default=""),
-        "PASSWORD": env("DB_PASSWORD", default=""),
-        "HOST": env("DB_HOST", default="127.0.0.1"),
-        "PORT": env("DB_PORT", default="5432"),
-        "CONN_MAX_AGE": 60,
-    }
+    "default": dj_database_url.parse(
+        env("DATABASE_URL"),
+        conn_max_age=60,
+        ssl_require=False,
+    )
 }
+
 
 # --------------------------------------------------
 # PASSWORD VALIDATION
