@@ -1,20 +1,46 @@
 from pathlib import Path
 import environ
 
+# --------------------------------------------------
+# BASE
+# --------------------------------------------------
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 env = environ.Env(
-    DJANGO_DEBUG=(bool, False),
-    DJANGO_ALLOWED_HOSTS=(list, ["127.0.0.1", "localhost", "https://unbiographical-siu-unlibelously.ngrok-free.dev"]),
-    DJANGO_CSRF_TRUSTED_ORIGINS=(list, []),
+    DEBUG=(bool, False),
 )
-environ.Env.read_env(BASE_DIR / ".env")
 
-SECRET_KEY = env("DJANGO_SECRET_KEY", default="change-me")
-DEBUG = env("DJANGO_DEBUG")
-ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS")
-CSRF_TRUSTED_ORIGINS = env.list("DJANGO_CSRF_TRUSTED_ORIGINS", default=[])
+# Load .env ONLY if it exists (local dev)
+if (BASE_DIR / ".env").exists():
+    env.read_env(BASE_DIR / ".env")
 
+# --------------------------------------------------
+# CORE SETTINGS
+# --------------------------------------------------
+SECRET_KEY = env("DJANGO_SECRET_KEY", default="change-me-now")
+DEBUG = env("DJANGO_DEBUG", default=False)
+
+ALLOWED_HOSTS = env.list(
+    "DJANGO_ALLOWED_HOSTS",
+    default=[
+        "127.0.0.1",
+        "localhost",
+        ".ngrok-free.dev",
+        ".railway.app",
+    ],
+)
+
+CSRF_TRUSTED_ORIGINS = env.list(
+    "DJANGO_CSRF_TRUSTED_ORIGINS",
+    default=[
+        "https://*.ngrok-free.dev",
+        "https://*.railway.app",
+    ],
+)
+
+# --------------------------------------------------
+# APPLICATIONS
+# --------------------------------------------------
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -27,6 +53,9 @@ INSTALLED_APPS = [
     "qa",
 ]
 
+# --------------------------------------------------
+# MIDDLEWARE
+# --------------------------------------------------
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
@@ -40,6 +69,9 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = "realtime_questions.urls"
 
+# --------------------------------------------------
+# TEMPLATES
+# --------------------------------------------------
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
@@ -56,21 +88,30 @@ TEMPLATES = [
     },
 ]
 
+# --------------------------------------------------
+# ASGI / WSGI
+# --------------------------------------------------
 WSGI_APPLICATION = "realtime_questions.wsgi.application"
 ASGI_APPLICATION = "realtime_questions.asgi.application"
 
+# --------------------------------------------------
+# DATABASE (Railway-safe, production-safe)
+# --------------------------------------------------
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": env("DB_NAME"),
-        "USER": env("DB_USER"),
-        "PASSWORD": env("DB_PASSWORD"),
+        "NAME": env("DB_NAME", default=""),
+        "USER": env("DB_USER", default=""),
+        "PASSWORD": env("DB_PASSWORD", default=""),
         "HOST": env("DB_HOST", default="127.0.0.1"),
         "PORT": env("DB_PORT", default="5432"),
         "CONN_MAX_AGE": 60,
     }
 }
 
+# --------------------------------------------------
+# PASSWORD VALIDATION
+# --------------------------------------------------
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
@@ -78,32 +119,46 @@ AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
 
+# --------------------------------------------------
+# I18N / TIME
+# --------------------------------------------------
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "Africa/Lagos"
 USE_I18N = True
 USE_TZ = True
 
+# --------------------------------------------------
+# STATIC FILES (WhiteNoise)
+# --------------------------------------------------
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
-STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+STATICFILES_STORAGE = (
+    "whitenoise.storage.CompressedManifestStaticFilesStorage"
+)
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-# Channels / Redis
+# --------------------------------------------------
+# CHANNELS / REDIS
+# --------------------------------------------------
 REDIS_URL = env("REDIS_URL", default="redis://127.0.0.1:6379/0")
+
 CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
         "CONFIG": {
             "hosts": [REDIS_URL],
         },
-    },
+    }
 }
 
-# Basic hardening
+# --------------------------------------------------
+# SECURITY (PRODUCTION SAFE)
+# --------------------------------------------------
 SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = "DENY"
-CSRF_COOKIE_SECURE = (not DEBUG)
-SESSION_COOKIE_SECURE = (not DEBUG)
+
+CSRF_COOKIE_SECURE = not DEBUG
+SESSION_COOKIE_SECURE = not DEBUG
 SECURE_SSL_REDIRECT = False if DEBUG else True
