@@ -131,7 +131,14 @@ USE_TZ = True
 # STATIC FILES (WhiteNoise)
 # --------------------------------------------------
 STATIC_URL = "/static/"
+
+import os
+
 STATIC_ROOT = BASE_DIR / "staticfiles"
+
+# Ensure static directory always exists (Railway-safe)
+os.makedirs(STATIC_ROOT, exist_ok=True)
+
 
 STATICFILES_STORAGE = (
     "whitenoise.storage.CompressedManifestStaticFilesStorage"
