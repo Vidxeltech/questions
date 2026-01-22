@@ -26,6 +26,7 @@ ALLOWED_HOSTS = env.list(
         "127.0.0.1",
         "localhost",
         ".ngrok-free.dev",
+        "web-production-5e0c7.up.railway.app",
         ".railway.app",
     ],
 )
@@ -33,6 +34,7 @@ ALLOWED_HOSTS = env.list(
 CSRF_TRUSTED_ORIGINS = env.list(
     "DJANGO_CSRF_TRUSTED_ORIGINS",
     default=[
+        "https://web-production-5e0c7.up.railway.app",
         "https://*.ngrok-free.dev",
         "https://*.railway.app",
     ],
